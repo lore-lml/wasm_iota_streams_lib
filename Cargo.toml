@@ -1,0 +1,41 @@
+[package]
+name = "iota_streams_wasm"
+version = "0.0.1"
+authors = ["huhn511 <huhn@einfachIOTA.de>", "Vlad Semenov <vlad.semenov@iota.org>", "Dyrell Chapman <dyrell.chapman@iota.org>", "Brord van Wierst <brord@iota.org>"]
+edition = "2018"
+repository = "https://github.com/iotaledger/streams"
+homepage = "https://www.iota.org"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+wasm-bindgen-futures = "0.4"
+console_error_panic_hook = "0.1.6"
+js-sys = "0.3.46"
+
+serde = { version = "1.0", features = ["derive"] }
+iota-streams = { git="https://github.com/iotaledger/streams.git", branch="develop", default-features = false, features = ["tangle", "wasm-client"]}
+
+# Needed to specify the js/wasm feature for a sub-crate
+getrandom = {version = "0.2.2", features = ["js"]}
+
+anyhow = { version = "1.0", default-features = false }
+rand = "0.8.3"
+
+iota-crypto = { git = "https://github.com/iotaledger/crypto.rs", branch = "dev", features = ["blake2b"]}
+chacha20poly1305 = "0.7.1"
+aead = "0.4.0"
+
+
+serde_json = "^1.0"
+bincode = "^1.0"
+base64 = "^0.12"
