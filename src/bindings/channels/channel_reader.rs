@@ -3,9 +3,9 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use wasm_bindgen::prelude::*;
 use crate::utils::set_panic_hook;
-use crate::bindings::channels::{ResponseMessage, KeyNonce, ChannelInfo};
+use crate::bindings::channels::{ResponseMessage, KeyNonce, ChannelInfo, EncryptedState};
 use crate::payload::payload_serializers::{RawPacket, RawPacketBuilder};
-use anyhow::Result;
+use anyhow::{Result};
 
 
 #[wasm_bindgen]
@@ -83,6 +83,22 @@ impl ChannelReader{
         match self.channel.borrow().msg_index(msg_id){
             Ok(index) => Ok(index),
             Err(_) => Err(JsValue::null())
+        }
+    }
+
+    pub fn export_to_bytes(&self, psw: &str) -> Result<EncryptedState, JsValue>{
+        match self.channel.borrow().export_to_bytes(psw){
+            Ok(state) => Ok(EncryptedState::new(state)),
+            Err(e) => Err(JsValue::from_str(&e.to_string()))
+        }
+    }
+
+    pub fn import_from_bytes(state: &EncryptedState, psw: &str, node_url: Option<String>) -> Result<ChannelReader, JsValue>{
+        match ChRd::import_from_bytes(state.state(), psw, node_url.as_deref(), None){
+            Ok(reader) => Ok(ChannelReader{
+                channel: Rc::new(RefCell::new(reader))
+            }),
+            Err(e) => Err(JsValue::from_str(&e.to_string()))
         }
     }
 }

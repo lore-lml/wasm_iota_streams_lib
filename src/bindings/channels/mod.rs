@@ -7,6 +7,18 @@ use crate::utility::iota_utility::{create_encryption_key, create_encryption_nonc
 use std::convert::TryInto;
 
 #[wasm_bindgen]
+pub struct EncryptedState(Vec<u8>);
+
+impl EncryptedState{
+    pub fn new(state: Vec<u8>) -> Self{
+        EncryptedState(state)
+    }
+    pub fn state(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+#[wasm_bindgen]
 pub struct ResponseMessage{
     msg_id: String,
     public: Vec<u8>,
