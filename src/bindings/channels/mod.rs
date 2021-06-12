@@ -7,7 +7,6 @@ use crate::utility::iota_utility::{create_encryption_key, create_encryption_nonc
 use std::convert::TryInto;
 
 #[wasm_bindgen]
-#[derive(Clone)]
 pub struct ResponseMessage{
     msg_id: String,
     public: Vec<u8>,

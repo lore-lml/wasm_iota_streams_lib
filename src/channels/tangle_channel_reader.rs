@@ -8,13 +8,13 @@ use iota_streams::{
 use iota_streams::app::message::HasLink;
 use iota_streams::app_channels::api::tangle::MessageContent;
 
-use crate::payload::payload_types::{StreamsPacket, StreamsPacketSerializer};
 use crate::utility::iota_utility::{create_link, msg_index, hash_string};
 use crate::payload::payload_serializers::RawPacket;
 use crate::channels::channel_state::ChannelState;
 use iota_streams::app::transport::tangle::client::SendOptions;
 use crate::user_builders::subscriber_builder::SubscriberBuilder;
 use crate::channels::builders::channel_builders::ChannelReaderBuilder;
+use std::collections::VecDeque;
 
 ///
 /// Channel Reader
@@ -23,7 +23,7 @@ pub struct ChannelReader {
     subscriber: Subscriber<StreamsClient>,
     channel_address: String,
     announcement_id: String,
-    unread_msgs: Vec<(String, Vec<u8>, Vec<u8>)>,
+    unread_msgs: VecDeque<(String, Vec<u8>, Vec<u8>)>,
 }
 
 impl ChannelReader {
@@ -43,7 +43,7 @@ impl ChannelReader {
             subscriber,
             channel_address: channel_address.to_string(),
             announcement_id: announcement_id.to_string(),
-            unread_msgs: Vec::new()
+            unread_msgs: VecDeque::new()
         }
     }
 
@@ -71,7 +71,7 @@ impl ChannelReader {
         let link = create_link(&self.channel_address, &self.announcement_id)?;
         self.subscriber.receive_announcement(&link).await?;
 
-        if !self.fetch_next_msgs().await{
+        if !self.fetch_all_msgs().await{
             return Ok(());
         }
 
@@ -94,72 +94,22 @@ impl ChannelReader {
     }
 
     ///
-    /// Send a subscription to a channels for future private communications
-    ///
-    pub async fn send_subscription(&mut self) -> Result<String>{
-        let link = create_link(&self.channel_address, &self.announcement_id)?;
-        let addr = self.subscriber.send_subscribe(&link).await?.msgid.to_string();
-        Ok(addr)
-    }
-
-    ///
-    /// Receive a signed packet and return it in a StreamsPacket struct that is able to parse its content to your own types
-    ///
-    pub async fn receive_parsed_packet<T>(&mut self, msg_id: &str, key_nonce: Option<([u8;32], [u8;24])>) -> Result<StreamsPacket<T>>
-        where
-            T: StreamsPacketSerializer,
-    {
-        let msg_link = create_link(&self.channel_address, msg_id)?;
-        let (_, public_payload, masked_payload) = self.subscriber.receive_signed_packet(&msg_link).await?;
-        let (p_data, m_data) = (&public_payload.0, &masked_payload.0);
-
-        StreamsPacket::from_streams_response(&p_data, &m_data, &key_nonce)
-    }
-
-    ///
-    /// Receive a signed packet in raw format. It returns a tuple (pub_bytes, masked_bytes)
-    ///
-    pub async fn receive_raw_packet<T>(&mut self, msg_id: &str) -> Result<(Vec<u8>, Vec<u8>)>
-        where
-            T: StreamsPacketSerializer,
-    {
-        let msg_link = create_link(&self.channel_address, msg_id)?;
-        let (_, public_payload, masked_payload) = self.subscriber.receive_signed_packet(&msg_link).await?;
-        Ok((public_payload.0.clone(), masked_payload.0.clone()))
-    }
-
-    ///
     /// Fetch all the remaining msgs
     ///
     /// # Return Value
     /// It returns a Vector of Tuple containing (msg_id, public_bytes, masked_bytes)
     ///
-    pub async fn fetch_raw_msgs(&mut self) -> Vec<(String, Vec<u8>, Vec<u8>)> {
-        self.fetch_next_msgs().await;
-        let res = self.unread_msgs.clone();
-        self.unread_msgs = Vec::new();
-        res
+    pub async fn fetch_raw_msgs(&mut self) -> u32 {
+        self.fetch_all_msgs().await;
+        self.unread_msgs.len() as u32
     }
 
-    ///
-    /// Fetch all the remaining msgs
-    ///
-    /// # Return Value
-    /// It returns a Vector of StreamsPacket that can parse its content
-    ///
-    pub async fn fetch_parsed_msgs<T>(&mut self, key_nonce: &Option<([u8;32], [u8;24])>) -> Result<Vec<(String, StreamsPacket<T>)>>
-    where
-        T: StreamsPacketSerializer
-    {
-        self.fetch_next_msgs().await;
+    pub fn has_next_msg(&self) -> bool{
+        !self.unread_msgs.is_empty()
+    }
 
-        let mut res = vec![];
-        for (id, p, m) in &self.unread_msgs {
-            res.push((id.clone(), StreamsPacket::from_streams_response(p, m, key_nonce)?));
-        }
-
-        self.unread_msgs = Vec::new();
-        Ok(res)
+    pub fn pop_next_msg(&mut self) -> Option<(String, Vec<u8>, Vec<u8>)>{
+        self.unread_msgs.pop_front()
     }
 
     ///
@@ -193,7 +143,7 @@ impl ChannelReader{
             subscriber,
             channel_address,
             announcement_id: channel_state.announcement_id(),
-            unread_msgs: Vec::new(),
+            unread_msgs: VecDeque::new(),
         })
     }
 
@@ -203,7 +153,7 @@ impl ChannelReader{
         Ok(ChannelState::new(&author_state, &self.channel_address, &self.announcement_id, ""))
     }
 
-    async fn fetch_next_msgs(&mut self) -> bool{
+    async fn fetch_all_msgs(&mut self) -> bool{
         let msgs = self.subscriber.fetch_all_next_msgs().await;
         let mut found = false;
         for msg in msgs {
@@ -214,7 +164,7 @@ impl ChannelReader{
                     let m = masked_payload.0;
 
                     if !p.is_empty() || !m.is_empty(){
-                        self.unread_msgs.push((link.to_string(), p, m));
+                        self.unread_msgs.push_back((link.to_string(), p, m));
                         found = true;
                     }
                 }

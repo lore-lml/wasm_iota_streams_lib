@@ -6,13 +6,11 @@ use crate::utils::set_panic_hook;
 use crate::bindings::channels::{ResponseMessage, KeyNonce, ChannelInfo};
 use crate::payload::payload_serializers::{RawPacket, RawPacketBuilder};
 use anyhow::Result;
-use std::collections::VecDeque;
 
 
 #[wasm_bindgen]
 pub struct ChannelReader{
-    channel: Rc<RefCell<ChRd>>,
-    unread_msgs: VecDeque<(String, Vec<u8>, Vec<u8>)>,
+    channel: Rc<RefCell<ChRd>>
 }
 
 
@@ -22,7 +20,6 @@ impl ChannelReader {
         set_panic_hook();
         ChannelReader{
             channel: Rc::new(RefCell::new(channel)),
-            unread_msgs: VecDeque::new(),
         }
     }
 }
@@ -33,7 +30,6 @@ impl ChannelReader{
     pub fn clone(&self) -> ChannelReader{
         ChannelReader{
             channel: self.channel.clone(),
-            unread_msgs: self.unread_msgs.clone(),
         }
     }
 
@@ -54,20 +50,13 @@ impl ChannelReader{
     /// # Return Value
     /// It returns a Vector of Tuple containing (msg_id, public_bytes, masked_bytes)
     ///
-    pub async fn fetch_raw_msgs(self) -> bool {
-        let msgs = self.channel.borrow_mut().fetch_raw_msgs().await;
-        if msgs.len() <= 0{
-            return false
-        }
-
-
-
-        true
+    pub async fn fetch_raw_msgs(self) -> u32 {
+        self.channel.borrow_mut().fetch_raw_msgs().await
     }
 
     #[wasm_bindgen(catch)]
-    pub fn pop_msg(&mut self, key_nonce: Option<KeyNonce>) -> Result<ResponseMessage, JsValue>{
-        let (msg_id, public, masked) = match self.unread_msgs.pop_front(){
+    pub fn pop_msg(&self, key_nonce: Option<KeyNonce>) -> Result<ResponseMessage, JsValue>{
+        let (msg_id, public, masked) = match self.channel.borrow_mut().pop_next_msg(){
             None => return Err(JsValue::null()),
             Some(res) => res
         };
@@ -79,7 +68,7 @@ impl ChannelReader{
     }
 
     pub fn has_next_msg(&self) -> bool{
-        !self.unread_msgs.is_empty()
+        self.channel.borrow().has_next_msg()
     }
 
     pub fn channel_address(&self) -> ChannelInfo{
