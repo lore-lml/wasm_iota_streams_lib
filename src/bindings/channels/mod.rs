@@ -1,6 +1,7 @@
 mod channel_reader;
 pub use channel_reader::ChannelReader;
 
+pub mod builders;
 
 use wasm_bindgen::prelude::*;
 use crate::utility::iota_utility::{create_encryption_key, create_encryption_nonce};
